@@ -1,0 +1,72 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: /api
+    image: website-frontend:latest
+    container_name: website-frontend
+    ports:
+      - "8080:80"
+    restart: always
+    networks:
+      - appnet
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: website-backend:latest
+    container_name: website-backend
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-website_collection}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - appnet
+
+  mysql:
+    image: mysql:8.0
+    container_name: website-mysql
+    env_file:
+      - .env
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME:-website_collection}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - mysqlvol:/var/lib/mysql
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    name: websiteresources-appnet
+    driver: bridge
+
+volumes:
+  mysqlvol:
+    name: websiteresources-mysqlvol

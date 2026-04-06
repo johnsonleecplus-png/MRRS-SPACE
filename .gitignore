@@ -4,6 +4,7 @@ node_modules
 .env.development.local
 .env.test.local
 .env.production.local
+.env.docker
 dist
 .DS_Store
 *.swp
@@ -32,6 +33,12 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+backup_*.sql
+backend/website_collection.sql
+
 # Build files
 dist-ssr
 *.local
+
+# Docker
+docker-compose.override.yml

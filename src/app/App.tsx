@@ -6,6 +6,18 @@ import { Search as SearchIcon } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { storageService } from '../services/storage';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import {
+  AlertDialog,
+  AlertDialogPortal,
+  AlertDialogOverlay,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from './components/ui/alert-dialog';
 
 const STORAGE_KEY = 'websites_data_v1';
 
@@ -15,19 +27,26 @@ export default function Web() {
   const [allWebsites, setAllWebsites] = useState(initialData);
   const [isLoading, setIsLoading] = useState(true);
   const [backendOk, setBackendOk] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editWebsite, setEditWebsite] = useState<any>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [websiteToDelete, setWebsiteToDelete] = useState<{ website: any; category: string } | null>(null);
   
   const readLocal = () => {
     try {
       const s = localStorage.getItem(STORAGE_KEY);
       return s ? JSON.parse(s) : null;
-    } catch {
+    } catch (err) {
+      console.error('[readLocal]', err);
       return null;
     }
   };
   const writeLocal = (data: any) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch {}
+    } catch (err) {
+      console.error('[writeLocal]', err);
+    }
   };
 
   // Fetch data from backend
@@ -149,8 +168,16 @@ export default function Web() {
     return true;
   };
 
-  const handleDeleteWebsite = async (website: any, category: string): Promise<void> => {
+  const handleDeleteWebsite = (website: any, category: string): void => {
     if (!category) return;
+    setWebsiteToDelete({ website, category });
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteWebsite = async (): Promise<void> => {
+    if (!websiteToDelete) return;
+
+    const { website, category } = websiteToDelete;
 
     // Optimistic update
     let updatedData = { ...allWebsites };
@@ -164,6 +191,61 @@ export default function Web() {
 
     // Sync to backend
     await syncToBackend(updatedData);
+
+    // Reset delete state
+    setIsDeleteDialogOpen(false);
+    setWebsiteToDelete(null);
+  };
+
+  const handleEditWebsite = (website: any, category: string): void => {
+    setEditWebsite({ ...website, category });
+    setIsEditMode(true);
+  };
+
+  const handleEditSubmit = async (updatedWebsite: any): Promise<boolean> => {
+    const oldCategory = editWebsite.category;
+    const newCategory = updatedWebsite.category;
+
+    if (!newCategory) return false;
+
+    // Optimistic update
+    let updatedData = { ...allWebsites };
+
+    // Remove from old category
+    if (oldCategory) {
+      const oldList = updatedData[oldCategory as keyof typeof updatedData] || [];
+      const filteredOld = oldList.filter((item: any) => item.url !== editWebsite.url || item.name !== editWebsite.name);
+      updatedData = { ...updatedData, [oldCategory]: filteredOld };
+    }
+
+    // Check for duplicates in new category (exclude current editing website)
+    const newList = updatedData[newCategory as keyof typeof updatedData] || [];
+    const existing = newList.find(item => 
+      (item.url === updatedWebsite.url || item.name === updatedWebsite.name)
+    );
+    if (existing) {
+      toast.error('该网站已存在');
+      return false;
+    }
+
+    // Add to new category
+    updatedData = {
+      ...updatedData,
+      [newCategory]: [updatedWebsite, ...newList.filter((item: any) => item.url !== updatedWebsite.url || item.name !== updatedWebsite.name)]
+    };
+
+    setAllWebsites(updatedData);
+    writeLocal(updatedData);
+    toast.success('编辑成功');
+
+    // Sync to backend
+    await syncToBackend(updatedData);
+
+    // Reset edit state
+    setIsEditMode(false);
+    setEditWebsite(null);
+
+    return true;
   };
 
   return (
@@ -179,6 +261,11 @@ export default function Web() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onAddWebsite={handleAddWebsite}
+          onEdit={handleEditSubmit}
+          isEditMode={isEditMode}
+          editWebsite={editWebsite}
+          onEditModeChange={setIsEditMode}
+          onEditWebsiteChange={setEditWebsite}
         />
 
         {/* Main Content */}
@@ -229,10 +316,11 @@ export default function Web() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 lg:gap-8">
                   {filteredWebsites.map((website: any, index: number) => (
                     <WebsiteCard
-                      key={`${website.name}-${index}`}
-                      {...website}
-                      onDelete={() => handleDeleteWebsite(website, activeCategory)}
-                    />
+                    key={`${website.name}-${index}`}
+                    {...website}
+                    onDelete={() => handleDeleteWebsite(website, activeCategory)}
+                    onEdit={() => handleEditWebsite(website, activeCategory)}
+                  />
                   ))}
                 </div>
               ) : (
@@ -249,6 +337,29 @@ export default function Web() {
             </div>
           </div>
         </main>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent className="sm:max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认删除</AlertDialogTitle>
+              <AlertDialogDescription>
+                你确定要删除 "{websiteToDelete?.website.name}" 吗？此操作无法撤销。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setWebsiteToDelete(null);
+              }}>
+                取消
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteWebsite} className="bg-red-600 hover:bg-red-700 text-white">
+                确认删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </ErrorBoundary>
   );

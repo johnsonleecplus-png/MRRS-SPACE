@@ -1,6 +1,9 @@
 import { StorageAdapter } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.__ENV__?.VITE_API_BASE_URL) return window.__ENV__.VITE_API_BASE_URL;
+  return import.meta.env.VITE_API_BASE_URL || '/api';
+};
 
 export class MySQLAdapter implements StorageAdapter {
   name = 'MySQL';
@@ -12,7 +15,7 @@ export class MySQLAdapter implements StorageAdapter {
 
   async init(): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`);
+      const response = await fetch(`${getApiBaseUrl()}/health`, { credentials: 'same-origin' });
       if (response.ok) {
         console.log('MySQL backend connected successfully');
         this.isEnabled = true;
@@ -27,7 +30,7 @@ export class MySQLAdapter implements StorageAdapter {
     if (!this.isEnabled) return null;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/websites`);
+      const response = await fetch(`${getApiBaseUrl()}/websites`, { credentials: 'same-origin' });
       
       if (!response.ok) {
         console.error('MySQL load error:', response.statusText);
@@ -46,10 +49,16 @@ export class MySQLAdapter implements StorageAdapter {
     if (!this.isEnabled) return false;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/seed`, {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Confirm-Seed': 'YES',
+      };
+
+      const response = await fetch(`${getApiBaseUrl()}/seed`, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
-          'Content-Type': 'application/json',
+          ...headers,
         },
         body: JSON.stringify({ data }),
       });

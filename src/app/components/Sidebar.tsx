@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Palette, 
   Sparkles, 
@@ -14,11 +14,21 @@ import {
 import { MarsLogo } from './MarsLogo';
 import { AddWebsiteDialog } from './AddWebsiteDialog';
 import { motion } from 'motion/react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { toast } from "sonner";
 
 interface SidebarProps {
   activeCategory: string;
   onCategoryChange: (category: string) => void;
   onAddWebsite: (website: any) => Promise<boolean>;
+  onEdit: (website: any) => Promise<boolean>;
+  isEditMode: boolean;
+  editWebsite: any;
+  onEditModeChange: (mode: boolean) => void;
+  onEditWebsiteChange: (website: any) => void;
 }
 
 export const categories = [
@@ -32,10 +42,62 @@ export const categories = [
   { id: 'search', name: '搜索', icon: Search, color: 'text-teal-500', bg: 'bg-teal-50' },
 ];
 
-export function Sidebar({ activeCategory, onCategoryChange, onAddWebsite }: SidebarProps) {
+export function Sidebar({ activeCategory, onCategoryChange, onAddWebsite, onEdit, isEditMode, editWebsite, onEditModeChange, onEditWebsiteChange }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [adminDialogOpen, setAdminDialogOpen] = useState(false);
+  const [adminTokenInput, setAdminTokenInput] = useState('');
+  const [adminAuthed, setAdminAuthed] = useState(false);
 
   const toggleSidebar = () => setIsOpen(!isOpen);
+
+  const refreshAdminStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/status', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const json = await res.json();
+      setAdminAuthed(Boolean(json?.authed));
+    } catch (err) {
+      console.error('[adminStatus]', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshAdminStatus();
+  }, []);
+
+  const adminLogin = async () => {
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: adminTokenInput }),
+      });
+      if (!res.ok) {
+        toast.error('管理员登录失败');
+        return;
+      }
+      toast.success('管理员登录成功');
+      setAdminTokenInput('');
+      setAdminDialogOpen(false);
+      refreshAdminStatus();
+    } catch (err) {
+      console.error('[adminLogin]', err);
+      toast.error('管理员登录失败');
+    }
+  };
+
+  const adminLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
+      setAdminAuthed(false);
+      toast.success('已退出管理员');
+    } catch (err) {
+      console.error('[adminLogout]', err);
+      setAdminAuthed(false);
+      toast.error('退出失败，请重试');
+    }
+  };
 
   return (
     <>
@@ -104,7 +166,57 @@ export function Sidebar({ activeCategory, onCategoryChange, onAddWebsite }: Side
 
           {/* Footer / Add Button */}
           <div className="pt-6 mt-6 border-t border-gray-100">
-            <AddWebsiteDialog onAdd={onAddWebsite} categories={categories} />
+            <Dialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full rounded-xl h-11 mb-3"
+                  onClick={() => refreshAdminStatus()}
+                >
+                  {adminAuthed ? '管理员已登录' : '管理员登录'}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[420px] bg-white/95 backdrop-blur-xl border-gray-100 shadow-2xl rounded-3xl">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold text-gray-900">管理员登录</DialogTitle>
+                  <DialogDescription className="text-gray-500">
+                    登录后才可添加、编辑、删除与同步。
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-2">
+                  {adminAuthed ? (
+                    <Button className="w-full rounded-xl h-11" variant="outline" onClick={adminLogout}>
+                      退出管理员
+                    </Button>
+                  ) : (
+                    <>
+                      <div className="grid gap-2">
+                        <Label className="text-gray-500 font-medium">管理口令</Label>
+                        <Input
+                          value={adminTokenInput}
+                          onChange={(e) => setAdminTokenInput(e.target.value)}
+                          className="bg-gray-50 border-gray-200 focus:bg-white transition-all rounded-xl"
+                          placeholder="输入 ADMIN_TOKEN"
+                          type="password"
+                        />
+                      </div>
+                      <Button className="w-full rounded-xl h-11" onClick={adminLogin} disabled={!adminTokenInput}>
+                        登录
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+            <AddWebsiteDialog 
+              onAdd={onAddWebsite} 
+              onEdit={onEdit}
+              categories={categories} 
+              isEditMode={isEditMode}
+              editWebsite={editWebsite}
+              onEditModeChange={onEditModeChange}
+              onEditWebsiteChange={onEditWebsiteChange}
+            />
             <p className="text-[10px] text-gray-400 text-center mt-6 font-medium tracking-wider uppercase">
               © 2025 MARS Collection
             </p>

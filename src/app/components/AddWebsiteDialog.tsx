@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -11,7 +11,12 @@ import { cn } from "./ui/utils";
 
 interface AddWebsiteDialogProps {
   onAdd: (data: any) => Promise<boolean>;
+  onEdit: (data: any) => Promise<boolean>;
   categories: { id: string; name: string }[];
+  isEditMode: boolean;
+  editWebsite: any;
+  onEditModeChange: (mode: boolean) => void;
+  onEditWebsiteChange: (website: any) => void;
 }
 
 const ICON_CATEGORIES = {
@@ -23,7 +28,7 @@ const ICON_CATEGORIES = {
   '生活': ['🏠', '🛒', '🛍️', '🎁', '⏰', '⌚', '👓', '🎒', '🎓', '🧢', '👕', '👟', '🍔', '☕', '🚗', '✈️']
 };
 
-export function AddWebsiteDialog({ onAdd, categories }: AddWebsiteDialogProps) {
+export function AddWebsiteDialog({ onAdd, onEdit, categories, isEditMode, editWebsite, onEditModeChange, onEditWebsiteChange }: AddWebsiteDialogProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('常用');
   const [formData, setFormData] = useState({
@@ -35,6 +40,21 @@ export function AddWebsiteDialog({ onAdd, categories }: AddWebsiteDialogProps) {
     icon: '🌐'
   });
 
+  // 当editWebsite变化时，更新表单数据
+  useEffect(() => {
+    if (editWebsite) {
+      setFormData({
+        name: editWebsite.name || '',
+        url: editWebsite.url || '',
+        description: editWebsite.description || '',
+        category: editWebsite.category || '',
+        tags: editWebsite.tags ? editWebsite.tags.join(', ') : '',
+        icon: editWebsite.icon || '🌐'
+      });
+      setOpen(true);
+    }
+  }, [editWebsite, isEditMode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.url || !formData.category) {
@@ -42,26 +62,43 @@ export function AddWebsiteDialog({ onAdd, categories }: AddWebsiteDialogProps) {
       return;
     }
 
-    const newWebsite = {
+    const websiteData = {
       ...formData,
       tags: formData.tags.split(/[,，\s]+/).filter(Boolean),
       icon: formData.icon || '🌐'
     };
 
-    const ok = await onAdd(newWebsite);
+    let ok;
+    if (isEditMode) {
+      ok = await onEdit(websiteData);
+    } else {
+      ok = await onAdd(websiteData);
+    }
+
     if (ok) {
       setOpen(false);
       setFormData({ name: '', url: '', description: '', category: '', tags: '', icon: '🌐' });
       setActiveTab('常用');
-      toast.success("添加成功！");
+      toast.success(isEditMode ? "编辑成功！" : "添加成功！");
     } else {
-      // 保持弹窗打开，让用户知道失败了
-      console.error("Add failed");
+      console.error(isEditMode ? "Edit failed" : "Add failed");
+      toast.error("保存失败：请确认已管理员登录，且服务端已配置 ADMIN_TOKEN");
+    }
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      // 当对话框关闭时，重置编辑状态
+      onEditModeChange(false);
+      onEditWebsiteChange(null);
+      setFormData({ name: '', url: '', description: '', category: '', tags: '', icon: '🌐' });
+      setActiveTab('常用');
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button 
           className="w-full bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 
@@ -73,9 +110,9 @@ export function AddWebsiteDialog({ onAdd, categories }: AddWebsiteDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px] bg-white/95 backdrop-blur-xl border-gray-100 shadow-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-900">添加新页面</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-gray-900">{isEditMode ? '编辑页面' : '添加新页面'}</DialogTitle>
           <DialogDescription className="text-gray-500">
-            填写下方信息将新网站添加到您的收藏中。
+            {isEditMode ? '修改下方信息更新网站信息。' : '填写下方信息将新网站添加到您的收藏中。'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-6 py-4">
@@ -207,7 +244,7 @@ export function AddWebsiteDialog({ onAdd, categories }: AddWebsiteDialogProps) {
           </div>
 
           <Button type="submit" className="w-full bg-black text-white hover:bg-gray-800 rounded-xl h-11 mt-2">
-            确认添加
+            {isEditMode ? '确认修改' : '确认添加'}
           </Button>
         </form>
       </DialogContent>

@@ -16,5 +16,5 @@ export interface StorageAdapter {
 }
 
 export interface StorageConfig {
-  provider: 'supabase' | 'pocketbase' | 'local';
+  provider: 'pocketbase' | 'local';
 }

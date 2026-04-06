@@ -1,4 +1,4 @@
-import { ExternalLink, ArrowUpRight, Trash2 } from 'lucide-react';
+import { ExternalLink, ArrowUpRight, Trash2, Edit3 } from 'lucide-react';
 
 interface WebsiteCardProps {
   name: string;
@@ -7,9 +7,10 @@ interface WebsiteCardProps {
   icon: string;
   tags?: string[];
   onDelete?: () => void;
+  onEdit?: () => void;
 }
 
-export function WebsiteCard({ name, description, url, icon, tags, onDelete }: WebsiteCardProps) {
+export function WebsiteCard({ name, description, url, icon, tags, onDelete, onEdit }: WebsiteCardProps) {
   return (
     <div
       className="group relative flex flex-col h-full bg-white rounded-[2rem] p-6 
@@ -37,6 +38,17 @@ export function WebsiteCard({ name, description, url, icon, tags, onDelete }: We
           >
             <ArrowUpRight className="w-5 h-5 transition-transform duration-300 group-hover:rotate-45" />
           </a>
+          {onEdit && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(); }}
+              className="w-10 h-10 rounded-full border border-gray-100 flex items-center justify-center
+                         bg-white text-gray-400 hover:text-blue-600 hover:border-blue-300
+                         transition-all duration-300"
+              title="编辑该页面"
+            >
+              <Edit3 className="w-5 h-5" />
+            </button>
+          )}
           {onDelete && (
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
